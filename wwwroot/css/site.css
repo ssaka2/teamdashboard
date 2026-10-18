@@ -1,0 +1,15 @@
+/* Minimal screenshot-inspired styling; Bootstrap handles responsive navigation. */
+html { font-size: 16px; }
+body { margin: 0; background: #fff; color: #212529; }
+.site-frame { max-width: 1140px; margin: 16px auto 0; }
+.student-navbar { background-color: #3069ef; }
+.navbar { min-height: 54px; }
+.page-content { padding: 16px 100px 12px; }
+.page-content h1 { font-size: 2rem; font-weight: 500; margin: 0 0 8px; }
+.page-content p { margin: 0 0 12px; line-height: 1.55; }
+.site-footer { border-top: 1px solid #e6e6e6; padding: 8px 100px; color: #6c757d; font-size: .875rem; }
+@media (max-width: 767.98px) {
+  .site-frame { margin: 0 auto; }
+  .page-content { padding: 20px 18px 12px; }
+  .site-footer { padding: 10px 18px; }
+}
