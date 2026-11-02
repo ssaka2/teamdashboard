@@ -44,6 +44,43 @@ try:
     except HTTPError as error:
         assert error.code == 404, error.code
     print('PASS: 9 page routes, 3 static assets, and missing-route handling in Production.')
+    if os.environ.get('RUN_BROWSER_TESTS') == 'true':
+        from playwright.sync_api import sync_playwright, expect
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                for width in [1440, 390]:
+                    page = browser.new_page(viewport={'width': width, 'height': 900})
+                    errors = []
+                    page.on('pageerror', lambda error: errors.append(str(error)))
+                    def open_dashboard(route, heading):
+                        response = page.goto(base + route)
+                        assert response.status == 200, route
+                        expect(page.get_by_role('heading', name=heading, exact=True)).to_be_visible()
+                        if width < 992:
+                            page.locator('.navbar-toggler').click()
+                            expect(page.locator('.navbar-collapse')).to_be_visible()
+                    for area, links in [
+                        ('Student', [('Home', 'Home'), ('Catalog', 'Catalog'), ('Calendar', 'Calendar')]),
+                        ('Admin', [('Major', 'Majors'), ('Course', 'Courses'), ('Student', 'Students')]),
+                    ]:
+                        for label, controller in links:
+                            open_dashboard('/' + area + '/Dashboard/Index', area + ' Dashboard')
+                            page.get_by_role('link', name=label, exact=True).click()
+                            expect(page.locator('body')).to_contain_text(
+                                f'{area} Area - {controller} Controller - Index Action')
+                    open_dashboard('/', 'Student Dashboard')
+                    page.get_by_role('link', name='Admin', exact=True).click()
+                    expect(page.get_by_role('heading', name='Admin Dashboard', exact=True)).to_be_visible()
+                    if width < 992:
+                        page.locator('.navbar-toggler').click()
+                    page.get_by_role('link', name='View Site', exact=True).click()
+                    expect(page.get_by_role('heading', name='Student Dashboard', exact=True)).to_be_visible()
+                    assert not errors, errors
+                    page.close()
+                    print(f'PASS: Chromium navigation and responsive menu at {width}px.')
+            finally:
+                browser.close()
 finally:
     proc.terminate()
     try:
