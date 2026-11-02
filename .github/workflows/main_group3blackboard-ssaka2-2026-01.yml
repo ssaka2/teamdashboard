@@ -1,36 +1,62 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-name: 'Build and deploy ASP.Net Core app to Azure Web App: group3blackboard-ssaka2-2026-01'
-
+name: Build, verify and deploy Team Dashboard
 on:
   push:
-    branches:
-    - main
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 10
     steps:
-    - uses: actions/checkout@v2
-    
-    - name: Set up .NET Core
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: '10.x'
-
-    - name: Build with dotnet
-      run: dotnet build --configuration Release
-    
-    - name: dotnet publish
-      run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp 
-
-    - name: Deploy to Azure Web App
-      uses: azure/webapps-deploy@v2
-      with: 
-        app-name: 'group3blackboard-ssaka2-2026-01'
-        slot-name: 'production'
-        publish-profile: ${{ secrets.AzureAppService_PublishProfile_5bc6a43c234244ce82f5b7f6017ec6fd }}
-        package: ${{env.DOTNET_ROOT}}/myapp 
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - run: dotnet restore Group3Blackboard.csproj
+      - run: dotnet build Group3Blackboard.csproj -c Release --no-restore
+      - run: dotnet publish Group3Blackboard.csproj -c Release --no-build -o "${{ runner.temp }}/dashboard"
+      - name: Install Chromium verification dependencies
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Verify published application in Production
+        env:
+          RUN_BROWSER_TESTS: "true"
+        run: python scripts/verify_http.py "${{ runner.temp }}/dashboard"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-release
+          path: ${{ runner.temp }}/dashboard
+          if-no-files-found: error
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: dashboard-release
+          path: app
+      - name: Require Azure deployment credentials
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AzureAppService_PublishProfile_5bc6a43c234244ce82f5b7f6017ec6fd }}
+        run: |
+          if [ -z "$PUBLISH_PROFILE" ]; then
+            echo "::error::Configure the publish profile for group3blackboard-ssaka2-2026-01 production in the existing AzureAppService_PublishProfile secret."
+            exit 1
+          fi
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: group3blackboard-ssaka2-2026-01
+          slot-name: production
+          publish-profile: ${{ secrets.AzureAppService_PublishProfile_5bc6a43c234244ce82f5b7f6017ec6fd }}
+          package: app
